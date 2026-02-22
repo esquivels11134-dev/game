@@ -15,13 +15,22 @@ document.querySelector('#hostBtn').onclick = () => {
 };
 
 const DevicePixelRatio = window.devicePixelRatio || 1;
-canvas.width = innerWidth * DevicePixelRatio;
-canvas.height = innerHeight * DevicePixelRatio;
+canvas.width = 1600 * DevicePixelRatio;
+canvas.height = 900 * DevicePixelRatio;
 c.scale(DevicePixelRatio, DevicePixelRatio);
 
 const FrontEndPlayers = {};
 const FrontEndProjectiles = {};
 const FrontEndBlocks = [];
+let FrontEndHealthPickup = null;
+
+function circleRectCollide(cx, cy, r, rect) {
+  const closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.width));
+  const closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.height));
+  const dx = cx - closestX;
+  const dy = cy - closestY;
+  return dx * dx + dy * dy < r * r;
+}
 
 socket.on('initBlocks', blocks => {
   FrontEndBlocks.length = 0;
@@ -34,6 +43,18 @@ socket.on('initBlocks', blocks => {
         height: b.height
       })
     );
+  });
+});
+
+socket.on('updateHealthPickup', hp => {
+  if (!hp) {
+    FrontEndHealthPickup = null;
+    return;
+  }
+  FrontEndHealthPickup = new HealthPickup({
+    x: hp.x,
+    y: hp.y,
+    radius: hp.radius
   });
 });
 
@@ -86,8 +107,17 @@ socket.on('updatePlayers', BackendPlayers => {
       const lastIndex = playerInputs.findIndex(i => i.sequenceNumber === bp.sequenceNumber);
       if (lastIndex > -1) playerInputs.splice(0, lastIndex + 1);
       playerInputs.forEach(input => {
+        const oldX = FrontEndPlayers[id].x;
+        const oldY = FrontEndPlayers[id].y;
         FrontEndPlayers[id].x += input.dx;
         FrontEndPlayers[id].y += input.dy;
+        for (const block of FrontEndBlocks) {
+          if (circleRectCollide(FrontEndPlayers[id].x, FrontEndPlayers[id].y, FrontEndPlayers[id].radius, block)) {
+            FrontEndPlayers[id].x = oldX;
+            FrontEndPlayers[id].y = oldY;
+            break;
+          }
+        }
       });
     } else {
       gsap.to(FrontEndPlayers[id], {
@@ -117,6 +147,8 @@ function animate() {
 
   FrontEndBlocks.forEach(block => block.draw(c));
 
+  if (FrontEndHealthPickup) FrontEndHealthPickup.draw(c);
+
   for (const id in FrontEndPlayers) {
     FrontEndPlayers[id].draw();
   }
@@ -140,29 +172,94 @@ let sequenceNumber = 0;
 setInterval(() => {
   const me = FrontEndPlayers[socket.id];
   if (!me) return;
+
   if (keys.w.pressed) {
     sequenceNumber++;
-    playerInputs.push({ sequenceNumber, dx: 0, dy: -Speed });
-    me.y -= Speed;
-    socket.emit('move', { direction: 'up', sequenceNumber });
+    const dx = 0;
+    const dy = -Speed;
+    const oldX = me.x;
+    const oldY = me.y;
+    me.y += dy;
+    let blocked = false;
+    for (const block of FrontEndBlocks) {
+      if (circleRectCollide(me.x, me.y, me.radius, block)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) {
+      me.x = oldX;
+      me.y = oldY;
+    } else {
+      playerInputs.push({ sequenceNumber, dx, dy });
+      socket.emit('move', { direction: 'up', sequenceNumber });
+    }
   }
   if (keys.s.pressed) {
     sequenceNumber++;
-    playerInputs.push({ sequenceNumber, dx: 0, dy: Speed });
-    me.y += Speed;
-    socket.emit('move', { direction: 'down', sequenceNumber });
+    const dx = 0;
+    const dy = Speed;
+    const oldX = me.x;
+    const oldY = me.y;
+    me.y += dy;
+    let blocked = false;
+    for (const block of FrontEndBlocks) {
+      if (circleRectCollide(me.x, me.y, me.radius, block)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) {
+      me.x = oldX;
+      me.y = oldY;
+    } else {
+      playerInputs.push({ sequenceNumber, dx, dy });
+      socket.emit('move', { direction: 'down', sequenceNumber });
+    }
   }
   if (keys.a.pressed) {
     sequenceNumber++;
-    playerInputs.push({ sequenceNumber, dx: -Speed, dy: 0 });
-    me.x -= Speed;
-    socket.emit('move', { direction: 'left', sequenceNumber });
+    const dx = -Speed;
+    const dy = 0;
+    const oldX = me.x;
+    const oldY = me.y;
+    me.x += dx;
+    let blocked = false;
+    for (const block of FrontEndBlocks) {
+      if (circleRectCollide(me.x, me.y, me.radius, block)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) {
+      me.x = oldX;
+      me.y = oldY;
+    } else {
+      playerInputs.push({ sequenceNumber, dx, dy });
+      socket.emit('move', { direction: 'left', sequenceNumber });
+    }
   }
   if (keys.d.pressed) {
     sequenceNumber++;
-    playerInputs.push({ sequenceNumber, dx: Speed, dy: 0 });
-    me.x += Speed;
-    socket.emit('move', { direction: 'right', sequenceNumber });
+    const dx = Speed;
+    const dy = 0;
+    const oldX = me.x;
+    const oldY = me.y;
+    me.x += dx;
+    let blocked = false;
+    for (const block of FrontEndBlocks) {
+      if (circleRectCollide(me.x, me.y, me.radius, block)) {
+        blocked = true;
+        break;
+      }
+    }
+    if (blocked) {
+      me.x = oldX;
+      me.y = oldY;
+    } else {
+      playerInputs.push({ sequenceNumber, dx, dy });
+      socket.emit('move', { direction: 'right', sequenceNumber });
+    }
   }
 }, 15);
 
@@ -191,3 +288,4 @@ document.querySelector('#usernameForm').addEventListener('submit', event => {
     devicePixelRatio: DevicePixelRatio
   });
 });
+
