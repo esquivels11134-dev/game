@@ -57,6 +57,17 @@ let HealthPickup = null;
 const HealthPickupRadius = 14;
 const HealthRespawnTime = 8000;
 
+const bannedWords = ['badword1', 'badword2', 'badword3'];
+
+function filterMessage(msg) {
+  let result = msg;
+  bannedWords.forEach(word => {
+    const regex = new RegExp(word, 'gi');
+    result = result.replace(regex, '****');
+  });
+  return result;
+}
+
 function circleRectCollide(cx, cy, r, rect) {
   const closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.width));
   const closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.height));
@@ -152,6 +163,11 @@ io.on('connection', socket => {
         io.emit('updateHealthPickup', null);
       }
     }
+  });
+
+  socket.on('chatMessage', msg => {
+    const clean = filterMessage(String(msg).slice(0, 200));
+    io.emit('chatMessage', { id: socket.id, msg: clean });
   });
 });
 
