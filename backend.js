@@ -57,7 +57,12 @@ let HealthPickup = null;
 const HealthPickupRadius = 14;
 const HealthRespawnTime = 8000;
 
-const bannedWords = ['badword1', 'badword2', 'badword3'];
+const fs = require('fs');
+
+let bannedWords = fs.readFileSync('./public/badwords.txt', 'utf8')
+  .split(',')
+  .map(w => w.trim())
+  .filter(w => w.length > 0);
 
 function filterMessage(msg) {
   let result = msg;
@@ -225,4 +230,5 @@ setInterval(() => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
 
