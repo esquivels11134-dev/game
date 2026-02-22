@@ -15,13 +15,27 @@ document.querySelector('#hostBtn').onclick = () => {
 };
 
 const DevicePixelRatio = window.devicePixelRatio || 1;
-
 canvas.width = innerWidth * DevicePixelRatio;
 canvas.height = innerHeight * DevicePixelRatio;
 c.scale(DevicePixelRatio, DevicePixelRatio);
 
 const FrontEndPlayers = {};
 const FrontEndProjectiles = {};
+const FrontEndBlocks = [];
+
+socket.on('initBlocks', blocks => {
+  FrontEndBlocks.length = 0;
+  blocks.forEach(b => {
+    FrontEndBlocks.push(
+      new Block({
+        x: b.x,
+        y: b.y,
+        width: b.width,
+        height: b.height
+      })
+    );
+  });
+});
 
 socket.on('updateProjectiles', BackEndProjectiles => {
   for (const id in BackEndProjectiles) {
@@ -55,11 +69,11 @@ socket.on('updatePlayers', BackendPlayers => {
         radius: bp.radius,
         color: bp.color
       });
-      parent.innerHTML += `<div data-id="${id}" data-score="${bp.score}">${bp.username}: ${bp.score}</div>`;
+      parent.innerHTML += `<div data-id="${id}" data-score="${bp.score}">${bp.username} [HP:${bp.hp}]: ${bp.score}</div>`;
     }
     const label = parent.querySelector(`div[data-id="${id}"]`);
     if (label) {
-      label.innerHTML = `${bp.username}: ${bp.score}`;
+      label.innerHTML = `${bp.username} [HP:${bp.hp}]: ${bp.score}`;
       label.setAttribute('data-score', bp.score);
     }
     const children = Array.from(parent.children);
@@ -100,6 +114,9 @@ function animate() {
   requestAnimationFrame(animate);
   c.fillStyle = 'rgba(0, 0, 0, 0.1)';
   c.fillRect(0, 0, canvas.width, canvas.height);
+
+  FrontEndBlocks.forEach(block => block.draw(c));
+
   for (const id in FrontEndPlayers) {
     FrontEndPlayers[id].draw();
   }
