@@ -16,10 +16,36 @@ app.get('/', (req, res) => {
 
 const BackEndPlayers = {};
 const BackEndProjectiles = {};
+
 const Blocks = [
-  { x: 400, y: 300, width: 120, height: 40 },
-  { x: 800, y: 500, width: 80, height: 80 },
-  { x: 600, y: 200, width: 150, height: 30 }
+  { x: 0, y: 0, width: 1600, height: 40 },
+  { x: 0, y: 860, width: 1600, height: 40 },
+  { x: 0, y: 0, width: 40, height: 900 },
+  { x: 1560, y: 0, width: 40, height: 900 },
+
+  { x: 80, y: 80, width: 260, height: 80 },
+  { x: 80, y: 720, width: 260, height: 80 },
+  { x: 1260, y: 80, width: 260, height: 80 },
+  { x: 1260, y: 720, width: 260, height: 80 },
+
+  { x: 80, y: 200, width: 80, height: 260 },
+  { x: 260, y: 200, width: 80, height: 260 },
+  { x: 1260, y: 200, width: 80, height: 260 },
+  { x: 1440, y: 200, width: 80, height: 260 },
+
+  { x: 80, y: 440, width: 260, height: 80 },
+  { x: 1260, y: 440, width: 260, height: 80 },
+
+  { x: 80, y: 520, width: 80, height: 260 },
+  { x: 260, y: 520, width: 80, height: 260 },
+  { x: 1260, y: 520, width: 80, height: 260 },
+  { x: 1440, y: 520, width: 80, height: 260 },
+
+  { x: 520, y: 200, width: 560, height: 80 },
+  { x: 520, y: 620, width: 560, height: 80 },
+
+  { x: 520, y: 280, width: 80, height: 260 },
+  { x: 1000, y: 280, width: 80, height: 260 }
 ];
 
 const Speed = 6;
@@ -27,8 +53,48 @@ const Radius = 18;
 const ProjectRadius = 5;
 let ProjectileId = 0;
 
+let HealthPickup = null;
+const HealthPickupRadius = 14;
+const HealthRespawnTime = 8000;
+
+function circleRectCollide(cx, cy, r, rect) {
+  const closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.width));
+  const closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.height));
+  const dx = cx - closestX;
+  const dy = cy - closestY;
+  return dx * dx + dy * dy < r * r;
+}
+
+function spawnHealthPickup() {
+  const minX = 80;
+  const maxX = 1520;
+  const minY = 80;
+  const maxY = 820;
+  for (let i = 0; i < 50; i++) {
+    const x = Math.random() * (maxX - minX) + minX;
+    const y = Math.random() * (maxY - minY) + minY;
+    let collides = false;
+    for (const block of Blocks) {
+      if (circleRectCollide(x, y, HealthPickupRadius + 4, block)) {
+        collides = true;
+        break;
+      }
+    }
+    if (!collides) {
+      HealthPickup = { x, y, radius: HealthPickupRadius };
+      return;
+    }
+  }
+  HealthPickup = null;
+}
+
+setInterval(() => {
+  if (!HealthPickup) spawnHealthPickup();
+}, HealthRespawnTime);
+
 io.on('connection', socket => {
   socket.emit('initBlocks', Blocks);
+  if (HealthPickup) socket.emit('updateHealthPickup', HealthPickup);
   socket.emit('updatePlayers', BackEndPlayers);
 
   socket.on('shoot', ({ x, y, angle }) => {
@@ -39,8 +105,8 @@ io.on('connection', socket => {
 
   socket.on('initGame', ({ username, width, height, devicePixelRatio }) => {
     BackEndPlayers[socket.id] = {
-      x: 1000 * Math.random(),
-      y: 800 * Math.random(),
+      x: 800,
+      y: 450,
       color: `hsl(${360 * Math.random()}, 100%, 50%)`,
       sequenceNumber: 0,
       score: 0,
@@ -77,16 +143,17 @@ io.on('connection', socket => {
         break;
       }
     }
+
+    if (HealthPickup) {
+      const dist = Math.hypot(player.x - HealthPickup.x, player.y - HealthPickup.y);
+      if (dist < player.radius + HealthPickup.radius) {
+        player.hp = Math.min(player.hp + 1, 5);
+        HealthPickup = null;
+        io.emit('updateHealthPickup', null);
+      }
+    }
   });
 });
-
-function circleRectCollide(cx, cy, r, rect) {
-  const closestX = Math.max(rect.x, Math.min(cx, rect.x + rect.width));
-  const closestY = Math.max(rect.y, Math.min(cy, rect.y + rect.height));
-  const dx = cx - closestX;
-  const dy = cy - closestY;
-  return dx * dx + dy * dy < r * r;
-}
 
 setInterval(() => {
   for (const id in BackEndProjectiles) {
@@ -131,6 +198,10 @@ setInterval(() => {
     }
   }
 
+  if (HealthPickup && Object.keys(BackEndPlayers).length > 0) {
+    io.emit('updateHealthPickup', HealthPickup);
+  }
+
   io.emit('updateProjectiles', BackEndProjectiles);
   io.emit('updatePlayers', BackEndPlayers);
 }, 15);
@@ -138,3 +209,4 @@ setInterval(() => {
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
