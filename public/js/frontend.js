@@ -14,6 +14,34 @@ document.querySelector('#hostBtn').onclick = () => {
   window.location.reload();
 };
 
+const chatMessages = document.querySelector('#chatMessages');
+const chatInput = document.querySelector('#chatInput');
+
+let typing = false;
+
+chatInput.addEventListener('focus', () => {
+  typing = true;
+});
+
+chatInput.addEventListener('blur', () => {
+  typing = false;
+});
+
+chatInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && chatInput.value.trim() !== '') {
+    socket.emit('chatMessage', chatInput.value.trim());
+    chatInput.value = '';
+  }
+});
+
+socket.on('chatMessage', data => {
+  const div = document.createElement('div');
+  const name = FrontEndPlayers[data.id]?.username || 'Player';
+  div.textContent = name + ': ' + data.msg;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+});
+
 const DevicePixelRatio = window.devicePixelRatio || 1;
 canvas.width = 1600 * DevicePixelRatio;
 canvas.height = 900 * DevicePixelRatio;
@@ -90,7 +118,10 @@ socket.on('updatePlayers', BackendPlayers => {
         radius: bp.radius,
         color: bp.color
       });
+      FrontEndPlayers[id].username = bp.username;
       parent.innerHTML += `<div data-id="${id}" data-score="${bp.score}">${bp.username} [HP:${bp.hp}]: ${bp.score}</div>`;
+    } else {
+      FrontEndPlayers[id].username = bp.username;
     }
     const label = parent.querySelector(`div[data-id="${id}"]`);
     if (label) {
@@ -170,6 +201,7 @@ const playerInputs = [];
 let sequenceNumber = 0;
 
 setInterval(() => {
+  if (typing) return;
   const me = FrontEndPlayers[socket.id];
   if (!me) return;
 
